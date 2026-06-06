@@ -19,17 +19,29 @@ import {
 import { getClientId } from "@/lib/client-id";
 import { DEMO_USERNAMES } from "@/lib/demo-users";
 import type { AuthSession, LoginPayload } from "@/types/auth";
-import type { Comment, EntityId, Post, PostPayload, UpdatePostPayload } from "@/types/post";
+import type {
+  Comment,
+  EntityId,
+  Post,
+  PostPayload,
+  UpdatePostPayload,
+} from "@/types/post";
 
 import { LoginForm } from "./login-form";
 import { PostCard } from "./post-card";
 import { PostForm } from "./post-form";
+
+interface Toast {
+  id: number;
+  message: string;
+}
 
 export function FeedClient() {
   const [session, setSession] = useState<AuthSession | null>(null);
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [feedNotice, setFeedNotice] = useState<string | null>(
@@ -37,8 +49,13 @@ export function FeedClient() {
   );
   const [isComposerBusy, setIsComposerBusy] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [likePendingIds, setLikePendingIds] = useState<Set<EntityId>>(new Set());
-  const [deletePendingIds, setDeletePendingIds] = useState<Set<EntityId>>(new Set());
+  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [likePendingIds, setLikePendingIds] = useState<Set<EntityId>>(
+    new Set(),
+  );
+  const [deletePendingIds, setDeletePendingIds] = useState<Set<EntityId>>(
+    new Set(),
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -107,14 +124,21 @@ export function FeedClient() {
           return;
         }
 
-        if (loadError instanceof Error && loadError.message === "Authentication required.") {
+        if (
+          loadError instanceof Error &&
+          loadError.message === "Authentication required."
+        ) {
           clearStoredSession();
           setSession(null);
           setAuthError("Please log in again.");
           return;
         }
 
-        setError(loadError instanceof Error ? loadError.message : "Unable to load posts.");
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load posts.",
+        );
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -133,7 +157,9 @@ export function FeedClient() {
     setAuthError(null);
     const nextSession = await login(payload);
     setSession(nextSession);
-    setFeedNotice(`Logged in as @${nextSession.user.username}. Local API is active.`);
+    setFeedNotice(
+      `Logged in as @${nextSession.user.username}. Local API is active.`,
+    );
     return nextSession;
   }
 
@@ -146,6 +172,15 @@ export function FeedClient() {
     setIsCreateModalOpen(false);
   }
 
+  function pushToast(message: string) {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((current) => [...current, { id, message }]);
+
+    window.setTimeout(() => {
+      setToasts((current) => current.filter((toast) => toast.id !== id));
+    }, 2600);
+  }
+
   async function handleCreate(createPayload: PostPayload) {
     setIsComposerBusy(true);
     setError(null);
@@ -154,9 +189,12 @@ export function FeedClient() {
       const createdPost = await createPost(createPayload);
       setPosts((current) => [createdPost, ...current]);
       setIsCreateModalOpen(false);
+      pushToast("Post created.");
     } catch (creationError) {
       const message =
-        creationError instanceof Error ? creationError.message : "Unable to create post.";
+        creationError instanceof Error
+          ? creationError.message
+          : "Unable to create post.";
 
       setError(message);
       throw creationError;
@@ -169,7 +207,9 @@ export function FeedClient() {
     const updatedPost = await updatePost(postId, payload);
 
     setPosts((current) =>
-      current.map((post) => (post.id === postId ? { ...post, ...updatedPost } : post)),
+      current.map((post) =>
+        post.id === postId ? { ...post, ...updatedPost } : post,
+      ),
     );
   }
 
@@ -180,8 +220,13 @@ export function FeedClient() {
     try {
       await deletePost(postId);
       setPosts((current) => current.filter((post) => post.id !== postId));
+      pushToast("Post deleted.");
     } catch (deletionError) {
-      setError(deletionError instanceof Error ? deletionError.message : "Unable to delete post.");
+      setError(
+        deletionError instanceof Error
+          ? deletionError.message
+          : "Unable to delete post.",
+      );
     } finally {
       setDeletePendingIds((current) => {
         const next = new Set(current);
@@ -223,7 +268,11 @@ export function FeedClient() {
             : item,
         ),
       );
-      setError(likeError instanceof Error ? likeError.message : "Unable to update like.");
+      setError(
+        likeError instanceof Error
+          ? likeError.message
+          : "Unable to update like.",
+      );
     } finally {
       setLikePendingIds((current) => {
         const next = new Set(current);
@@ -268,92 +317,99 @@ export function FeedClient() {
   if (!session) {
     return (
       <main className="shell authShell">
-        <section className="hero">
-          <div className="hero__intro">
-            <p className="eyebrow">Opening Day Local</p>
-            <h1 className="hero__title">Login to the local feed.</h1>
-            <p className="hero__text">
-              Frontend болон backend хоёул `npm run dev` дээр хамт ажиллана. Login хийсний дараа
-              post, like, comment CRUD бүгд local file store дээр хадгалагдана.
-            </p>
-            <div className="hero__stats">
-              <div className="hero__stat">
-                <strong>Next.js</strong>
-                <span>frontend + API routes</span>
-              </div>
-              <div className="hero__stat">
-                <strong>.data</strong>
-                <span>local JSON persistence</span>
-              </div>
-            </div>
-          </div>
-
-          <aside className="hero__composer">
+        <section className="authCenter">
+          <aside className="hero__composer authCard">
             <p className="sectionLabel">Login</p>
-            {authError ? <div className="message message--error">{authError}</div> : null}
-            <LoginForm demoUsers={DEMO_USERNAMES.slice(0, 5)} onSubmit={handleLogin} />
+            {authError ? (
+              <div className="message message--error">{authError}</div>
+            ) : null}
+            <LoginForm
+              demoUsers={DEMO_USERNAMES.slice(0, 5)}
+              onSubmit={handleLogin}
+            />
           </aside>
         </section>
       </main>
     );
   }
 
-  const totalLikes = posts.reduce((sum, post) => sum + post.likes, 0);
+  const filteredPosts = posts.filter((post) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    return [post.author, post.title, post.caption ?? "", post.content ?? ""]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
 
   return (
     <main className="shell">
-      <section className="hero">
-        <div className="hero__intro">
-          <div className="topbar">
-            <p className="eyebrow">Opening Day Local</p>
-            <button className="pill" type="button" onClick={handleLogout}>
-              Logout
+      <header className="appHeader">
+        <label className="searchBar" htmlFor="feed-search">
+          <span>Search</span>
+          <input
+            id="feed-search"
+            placeholder="Search posts, caption, author..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+        </label>
+
+        <div className="profileChip">
+          <div className="avatar">
+            {session.user.username.slice(0, 2).toUpperCase()}
+          </div>
+          <div className="profileChip__meta">
+            <strong>@{session.user.username}</strong>
+            <span>{posts.length} posts in your feed</span>
+          </div>
+          <button className="pill" type="button" onClick={handleLogout}>
+            Logout
+          </button>
+        </div>
+      </header>
+
+      <section className="mainStack">
+        <section className="createStrip">
+          <div className="createStrip__content">
+            <div className="createStrip__copy">
+              <p className="sectionLabel">Create New Post</p>
+              <h2 className="createStrip__title">Drop a fresh frame into the feed.</h2>
+              <p className="createStrip__meta">
+                Title, caption, image URL оруулаад нийтэлнэ.
+              </p>
+            </div>
+            <button
+              className="pill pill--brand createStrip__button"
+              type="button"
+              onClick={() => setIsCreateModalOpen(true)}
+            >
+              Create post
             </button>
           </div>
-          <h1 className="hero__title">Feed your frame.</h1>
-          <p className="hero__text">
-            Logged in as <strong>@{session.user.username}</strong>. Local backend store нь энэ
-            app-ийн `/api` route-ууд дээр ажиллаж байна.
-          </p>
-
-          <div className="hero__stats">
-            <div className="hero__stat">
-              <strong>{posts.length}</strong>
-              <span>posts in feed</span>
-            </div>
-            <div className="hero__stat">
-              <strong>{totalLikes}</strong>
-              <span>total likes shown</span>
-            </div>
-            <div className="hero__stat">
-              <strong>@{session.user.username}</strong>
-              <span>active local session</span>
-            </div>
-          </div>
-        </div>
-
-        <aside className="hero__composer">
-          <p className="sectionLabel">Create New Post</p>
-          <p className="hero__text" style={{ marginTop: 0, marginBottom: 18 }}>
-            Post үүсгэхдээ author автоматаар таны login session-с авна.
-          </p>
-          <button className="pill pill--brand" type="button" onClick={() => setIsCreateModalOpen(true)}>
-            Create post
-          </button>
-        </aside>
+        </section>
       </section>
 
       <section className="feedList">
-        {feedNotice ? <div className="message message--success">{feedNotice}</div> : null}
+        {feedNotice ? (
+          <div className="message message--success">{feedNotice}</div>
+        ) : null}
         {error ? <div className="message message--error">{error}</div> : null}
 
-        {isLoading ? <div className="statusCard">Loading local feed...</div> : null}
-
-        {!isLoading && !error && posts.length === 0 ? (
-          <div className="statusCard">No posts found. Use the Create post button to add one.</div>
+        {isLoading ? (
+          <div className="statusCard">Loading local feed...</div>
         ) : null}
 
-        {posts.map((post) => (
+        {!isLoading && !error && filteredPosts.length === 0 ? (
+          <div className="statusCard">
+            No posts found. Use the Create post button to add one.
+          </div>
+        ) : null}
+
+        {filteredPosts.map((post) => (
           <PostCard
             currentUsername={session.user.username}
             isDeleting={deletePendingIds.has(post.id)}
@@ -380,13 +436,22 @@ export function FeedClient() {
             }
           }}
         >
-          <div className="modalCard" onClick={(event) => event.stopPropagation()}>
+          <div
+            className="modalCard"
+            onClick={(event) => event.stopPropagation()}
+          >
             <div className="modalHeader">
               <div>
                 <h3>Create post</h3>
-                <p className="muted">Title, caption, image URL оруулаад local post үүсгэнэ.</p>
+                <p className="muted">
+                  Title, caption, image URL оруулаад local post үүсгэнэ.
+                </p>
               </div>
-              <button className="pill" type="button" onClick={() => setIsCreateModalOpen(false)}>
+              <button
+                className="pill"
+                type="button"
+                onClick={() => setIsCreateModalOpen(false)}
+              >
                 Close
               </button>
             </div>
@@ -398,6 +463,16 @@ export function FeedClient() {
               submitLabel={isComposerBusy ? "Posting..." : "Share post"}
             />
           </div>
+        </div>
+      ) : null}
+
+      {toasts.length > 0 ? (
+        <div className="toastStack" aria-live="polite" aria-atomic="true">
+          {toasts.map((toast) => (
+            <div className="toast" key={toast.id}>
+              {toast.message}
+            </div>
+          ))}
         </div>
       ) : null}
     </main>

@@ -34,9 +34,9 @@ export function PostCard({
   const [isEditing, setIsEditing] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
+  const [shareLabel, setShareLabel] = useState("Share");
 
-  const mainCopy = post.caption || post.content || "No caption yet.";
-  const secondaryCopy = post.caption && post.content && post.content !== post.caption ? post.content : "";
   const initials = getInitials(post.author);
   const canManagePost = currentUsername === post.author;
 
@@ -57,6 +57,22 @@ export function PostCard({
       setIsEditing(false);
     } finally {
       setIsUpdating(false);
+    }
+  }
+
+  async function handleShare() {
+    const shareUrl =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/?post=${encodeURIComponent(String(post.id))}`
+        : String(post.id);
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareLabel("Copied");
+      window.setTimeout(() => setShareLabel("Share"), 1600);
+    } catch {
+      setShareLabel("Failed");
+      window.setTimeout(() => setShareLabel("Share"), 1600);
     }
   }
 
@@ -104,32 +120,53 @@ export function PostCard({
         )}
 
         <div className="feedCard__body">
-          <h2 className="feedCard__title">{post.title}</h2>
-          <p className="feedCard__caption">{mainCopy}</p>
-          {secondaryCopy ? <p className="feedCard__content">{secondaryCopy}</p> : null}
+          <p className="feedCard__dateLabel">{formatTimestamp(post.created_at)}</p>
         </div>
 
         <footer className="feedCard__footer">
-          <div className="postStats">
+          <div className="socialBar">
             <button
-              className={`pill ${post.is_liked ? "pill--brand" : "pill--soft"}`}
+              aria-label={post.is_liked ? "Unlike post" : "Like post"}
+              aria-pressed={post.is_liked}
+              className={`socialAction ${post.is_liked ? "socialAction--active" : ""}`}
               disabled={isLikePending}
               type="button"
               onClick={() => onLikeToggle(post)}
             >
-              {post.is_liked ? "Unlike" : "Like"} · {post.likes}
+              <HeartIcon filled={post.is_liked} />
+              <span>{post.likes}</span>
             </button>
-            <div className="pill">Comments · {post.comments_count}</div>
+            <button
+              aria-expanded={isCommentsOpen}
+              aria-label="Toggle comments"
+              className={`socialAction ${isCommentsOpen ? "socialAction--active" : ""}`}
+              type="button"
+              onClick={() => setIsCommentsOpen((current) => !current)}
+            >
+              <CommentIcon />
+              <span>{post.comments_count}</span>
+            </button>
+            <button
+              aria-label="Share post"
+              className="socialAction"
+              type="button"
+              onClick={() => void handleShare()}
+            >
+              <ShareIcon />
+              <span>{shareLabel}</span>
+            </button>
           </div>
 
-          <CommentSection
-            commentsCount={post.comments_count}
-            currentUsername={currentUsername}
-            initialComments={post.comments}
-            onCountChange={(count) => onCommentCountChange(post.id, count)}
-            onCommentsChange={(comments) => onCommentsChange(post.id, comments)}
-            postId={post.id}
-          />
+          {isCommentsOpen ? (
+            <CommentSection
+              commentsCount={post.comments_count}
+              currentUsername={currentUsername}
+              initialComments={post.comments}
+              onCountChange={(count) => onCommentCountChange(post.id, count)}
+              onCommentsChange={(comments) => onCommentsChange(post.id, comments)}
+              postId={post.id}
+            />
+          ) : null}
         </footer>
       </article>
 
@@ -170,5 +207,66 @@ export function PostCard({
         </div>
       ) : null}
     </>
+  );
+}
+
+function HeartIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg aria-hidden="true" className="socialIcon" viewBox="0 0 24 24">
+      <path
+        d="M12 21 3.8 12.7a5.5 5.5 0 0 1 7.8-7.8L12 5.3l.4-.4a5.5 5.5 0 0 1 7.8 7.8Z"
+        fill={filled ? "currentColor" : "none"}
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function CommentIcon() {
+  return (
+    <svg aria-hidden="true" className="socialIcon" viewBox="0 0 24 24">
+      <path
+        d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5H8l-5 3V11.5A8.5 8.5 0 0 1 11.5 3h1A8.5 8.5 0 0 1 21 11.5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+function ShareIcon() {
+  return (
+    <svg aria-hidden="true" className="socialIcon" viewBox="0 0 24 24">
+      <path
+        d="M14 5h5v5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M10 14 19 5"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M19 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
